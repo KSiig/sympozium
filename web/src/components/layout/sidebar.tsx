@@ -108,9 +108,9 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
         )}
       >
         {collapsed ? (
-          <img src={icon} alt="Sympozium" className="h-7 w-7 shrink-0" />
+          <img src={icon} alt="Sympozium" className="h-6 w-6 shrink-0" />
         ) : (
-          <img src={logo} alt="Sympozium" className="h-10" />
+          <img src={logo} alt="Sympozium" className="h-7" />
         )}
       </div>
 
