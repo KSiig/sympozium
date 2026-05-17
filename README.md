@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.png" alt="sympozium.ai logo" width="600px;">
+  <img src="logo.svg" alt="sympozium.ai logo" width="600px;">
 </p>
 
 <p align="center">
