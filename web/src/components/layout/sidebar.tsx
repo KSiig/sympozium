@@ -28,6 +28,7 @@ import {
 } from "@/components/ontology-modal";
 import { useRuns } from "@/hooks/use-api";
 import { useRunsSeen } from "@/hooks/use-runs-seen";
+import { useThemeAssets } from "@/hooks/use-theme-assets";
 
 type NavItem = {
   to: string;
@@ -76,6 +77,7 @@ interface AppSidebarProps {
 export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
   const { data: runs } = useRuns();
   const { unseenCount } = useRunsSeen();
+  const { icon, logo } = useThemeAssets();
   const allRuns = runs || [];
   const unseen = unseenCount(allRuns);
   const unseenFailed = unseenCount(
@@ -102,13 +104,13 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
       <div
         className={cn(
           "flex h-14 items-center border-b border-border/50 overflow-hidden",
-          collapsed ? "justify-center px-0" : "-ml-5",
+          collapsed ? "justify-center px-0" : "px-1.5",
         )}
       >
         {collapsed ? (
-          <img src="/icon.png" alt="Sympozium" className="h-8 w-8 shrink-0" />
+          <img src={icon} alt="Sympozium" className="h-6 w-6 shrink-0" />
         ) : (
-          <img src="/logo.png" alt="Sympozium" className="h-50" />
+          <img src={logo} alt="Sympozium" className="w-full" />
         )}
       </div>
 
@@ -132,7 +134,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
                   title={collapsed ? item.label : undefined}
                   className={({ isActive }) =>
                     cn(
-                      "relative flex items-center rounded-md text-sm font-medium transition-colors",
+                      "relative flex items-center text-sm font-medium transition-colors",
                       collapsed
                         ? "justify-center px-0 py-2"
                         : "gap-3 py-2 pr-3",
@@ -143,7 +145,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
                             ? "pl-6"
                             : "pl-3"),
                       isActive
-                        ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+                        ? "bg-primary/10 text-primary border border-primary/20"
                         : "text-muted-foreground hover:bg-white/5 hover:text-foreground border border-transparent",
                     )
                   }
@@ -153,7 +155,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
                   {item.badgeKey && badges[item.badgeKey] && (
                     <span
                       className={cn(
-                        "ml-auto inline-flex items-center justify-center rounded-full text-[10px] font-bold text-white",
+                        "ml-auto inline-flex items-center justify-center text-[10px] font-bold text-white",
                         collapsed
                           ? "absolute -top-1 -right-1 h-4 min-w-4 px-1"
                           : "h-5 min-w-5 px-1.5",
@@ -179,9 +181,9 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
             title="Synthetic Membrane"
             className={({ isActive }) =>
               cn(
-                "flex items-center justify-center rounded-md p-1.5 transition-colors",
+                "flex items-center justify-center p-1.5 transition-colors",
                 isActive
-                  ? "text-blue-400 bg-blue-500/10"
+                  ? "text-primary bg-primary/10"
                   : "text-muted-foreground hover:bg-white/5 hover:text-foreground",
               )
             }
@@ -193,7 +195,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
             target="_blank"
             rel="noopener noreferrer"
             title="Documentation"
-            className="flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors"
+            className="flex items-center justify-center p-1.5 text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors"
           >
             <BookOpen className="h-4 w-4" />
           </a>
@@ -202,7 +204,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
             target="_blank"
             rel="noopener noreferrer"
             title="GitHub"
-            className="flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors"
+            className="flex items-center justify-center p-1.5 text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors"
           >
             <Github className="h-4 w-4" />
           </a>
@@ -215,9 +217,9 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
             to="/synthetic-membrane"
             className={({ isActive }) =>
               cn(
-                "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-colors w-full",
+                "flex items-center gap-2 px-2 py-1.5 text-xs font-medium transition-colors w-full",
                 isActive
-                  ? "text-blue-400 bg-blue-500/10"
+                  ? "text-primary bg-primary/10"
                   : "text-muted-foreground hover:bg-white/5 hover:text-foreground",
               )
             }
@@ -229,7 +231,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
             href="https://deploy.sympozium.ai/docs"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors"
+            className="flex items-center gap-2 px-2 py-1.5 text-xs font-medium text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors"
           >
             <BookOpen className="h-3.5 w-3.5" />
             Documentation
@@ -238,7 +240,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
             href="https://github.com/sympozium-ai/sympozium"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors"
+            className="flex items-center gap-2 px-2 py-1.5 text-xs font-medium text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors"
           >
             <Github className="h-3.5 w-3.5" />
             Star on GitHub
@@ -247,7 +249,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
             href="https://github.com/sympozium-ai/sympozium/blob/main/CONTRIBUTING.md"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors"
+            className="flex items-center gap-2 px-2 py-1.5 text-xs font-medium text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors"
           >
             <Heart className="h-3.5 w-3.5" />
             Contribute
@@ -268,7 +270,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
         <button
           onClick={onToggle}
           className={cn(
-            "flex items-center rounded-md py-1.5 text-xs font-medium text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors w-full",
+            "flex items-center py-1.5 text-xs font-medium text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors w-full",
             collapsed ? "justify-center px-0" : "gap-2 px-2",
           )}
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}

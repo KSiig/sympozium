@@ -999,13 +999,13 @@ export const rfDefaults = {
 export function CanvasShell({ children }: { children: React.ReactNode }) {
 	return (
 		<>
-			<Background gap={20} size={1} color="#ffffff08" />
+			<Background gap={48} size={0.5} color="#e8562a" />
 			<Controls
 				showInteractive={false}
 				className="!bg-card !border-border/40 !shadow-md [&>button]:!bg-card [&>button]:!border-border/40 [&>button]:!text-muted-foreground [&>button:hover]:!bg-white/5"
 			/>
 			<MiniMap
-				nodeColor="#3b82f6"
+				nodeColor="#e8562a"
 				maskColor="rgba(0,0,0,0.7)"
 				className="!bg-card !border-border/40"
 			/>
