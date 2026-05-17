@@ -1322,7 +1322,7 @@ function TopologyCanvas() {
           nodesConnectable={false}
           className="topology-canvas"
         >
-          <Background color="#333" />
+          <Background color="#e8562a" gap={48} size={0.5} />
           <Controls showInteractive={false} />
           <MiniMap
             style={{ background: "hsl(var(--card))" }}
@@ -1330,19 +1330,19 @@ function TopologyCanvas() {
             nodeColor={(node) => {
               switch (node.type) {
                 case "cloudProvider":
-                  return "#f97316";
+                  return "#e8562a";
                 case "k8sNode":
-                  return "#10b981";
+                  return "#f0ece4";
                 case "model":
-                  return "#8b5cf6";
+                  return "#8a8c82";
                 case "ensemble":
-                  return "#3b82f6";
+                  return "#e8562a";
                 case "persona":
-                  return "#60a5fa";
+                  return "#f0ece4";
                 case "gateway":
-                  return "#f59e0b";
+                  return "#e8562a";
                 default:
-                  return "#6b7280";
+                  return "#333330";
               }
             }}
           />

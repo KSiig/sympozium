@@ -39,11 +39,24 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Industrial accent colors
+        industrial: {
+          orange: "#e8562a",
+          cream: "#f0ece4",
+          dark: "#1a1a18",
+          mid: "#333330",
+          muted: "#8a8c82",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        md: "var(--radius)",
+        sm: "var(--radius)",
+      },
+      fontFamily: {
+        sans: ['"JetBrains Mono"', '"Fira Code"', "monospace"],
+        mono: ['"JetBrains Mono"', '"Fira Code"', "monospace"],
+        serif: ['"Instrument Serif"', "Georgia", "serif"],
       },
     },
   },

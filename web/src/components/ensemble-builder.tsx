@@ -1126,9 +1126,9 @@ function BuilderCanvas({
             fitView
             proOptions={{ hideAttribution: true }}
           >
-            <Background />
+            <Background gap={48} size={0.5} color="#e8562a" />
             <Controls />
-            <MiniMap />
+            <MiniMap nodeColor="#e8562a" maskColor="rgba(0,0,0,0.6)" />
           </ReactFlow>
         </div>
 

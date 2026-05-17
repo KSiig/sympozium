@@ -13,6 +13,7 @@ import { Activity, LogOut, Wifi, WifiOff } from "lucide-react";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { useState } from "react";
 import { formatAge } from "@/lib/utils";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export function Header() {
   const { logout } = useAuth();
@@ -95,6 +96,7 @@ export function Header() {
             </>
           )}
         </div>
+        <ThemeToggle />
         <Button variant="ghost" size="icon" onClick={logout} title="Logout">
           <LogOut className="h-4 w-4" />
         </Button>
