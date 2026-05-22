@@ -220,10 +220,10 @@ rules:
   - apiGroups: [""]
     resources: ["nodes"]
     verbs: ["get", "list", "watch"]
-  # Secrets — read + create (auth token setup)
+  # Secrets — full access (auth token setup, ensemble credential lifecycle)
   - apiGroups: [""]
     resources: ["secrets"]
-    verbs: ["get", "list", "create", "update", "patch", "delete"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   # ConfigMaps, services, namespaces, service accounts
   - apiGroups: [""]
     resources: ["configmaps", "services", "namespaces", "serviceaccounts"]
