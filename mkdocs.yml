@@ -98,6 +98,7 @@ nav:
     - Prompt Engineering: guides/prompt-engineering.md
     - Writing Skills: guides/writing-skills.md
     - Writing Tools: guides/writing-tools.md
+    - Writing Sidecars: guides/writing-sidecars.md
     - Writing Integration Tests: guides/writing-integration-tests.md
     - Writing UX Tests (Cypress): guides/writing-ux-tests.md
   - Skills Reference:
