@@ -42,7 +42,7 @@ Every agent pod has these tools available out of the box (no skill sidecar requi
 | `schedule_task` | IPC (bridge) | Create, update, suspend, resume, or delete recurring `SympoziumSchedule` tasks |
 
 !!! note
-    **Native** tools run directly in the agent container. **IPC** tools communicate with sidecars or the IPC bridge via the shared `/ipc` volume. See the [Tool Authoring Guide](../guides/writing-tools.md) for how to add your own.
+    **Native** tools run directly in the agent container. **IPC** tools communicate with sidecars or the IPC bridge via the shared `/ipc` volume. See the [Tool Authoring Guide](../guides/writing-tools.md) for how to add your own, or the [Sidecar Authoring Guide](../guides/writing-sidecars.md) to build a custom sidecar that processes IPC calls.
 
 ## Built-in SkillPacks
 
