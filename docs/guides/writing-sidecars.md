@@ -51,6 +51,7 @@ The agent writes a request file to `/ipc/tools/exec-request-{id}.json`:
 | `workDir` | string | no | Working directory (default: `/workspace`) |
 | `timeout` | int | no | Timeout in seconds, 1–120 (default: 30) |
 | `target` | string | no | SkillPack name for routing (see [Target-Based Routing](#target-based-routing)) |
+| `caller` | string | no | Set by `sidecar_exec` to identify the calling sidecar (see [Sidecar-to-Sidecar Calls](#sidecar-to-sidecar-calls)) |
 
 ### Response
 
@@ -70,9 +71,10 @@ The sidecar writes a result file to `/ipc/tools/exec-result-{id}.json`:
 |-------|------|-------------|
 | `id` | string | Matches the request ID |
 | `exitCode` | int | Command exit code (0 = success) |
-| `stdout` | string | Standard output (truncated at 50KB) |
+| `stdout` | string | Standard output (truncated at 50KB unless `resultPath` is set) |
 | `stderr` | string | Standard error (truncated at 50KB) |
 | `timedOut` | bool | `true` if the command exceeded `timeout` seconds |
+| `resultPath` | string | File path containing the full output when stdout exceeds 50KB (see [Large Results](#large-results)) |
 
 ### Lifecycle
 
@@ -352,6 +354,111 @@ Comparison is **case-insensitive** and **whitespace-trimmed**. An empty `target`
 
 ---
 
+## Sidecar-to-Sidecar Calls
+
+Sidecars can call other sidecars directly using the `sidecar_exec` function, without routing data through the LLM context. This is useful when one sidecar needs data from another — for example, a scoring sidecar fetching a service catalog from an API sidecar.
+
+### How it works
+
+`sidecar_exec` uses the **same IPC protocol** as the agent. It writes an exec-request file, polls for the result, and returns the output. The only difference is:
+
+- Request IDs are prefixed `sidecar-` (agent uses nanosecond timestamps)
+- The `caller` field identifies which sidecar sent the request
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Agent Pod                                                   │
+│                                                              │
+│  ┌──────────────┐                                           │
+│  │ agent-runner  │  (unaware of sidecar-to-sidecar traffic) │
+│  └──────────────┘                                           │
+│                                                              │
+│  ┌───────────────┐  /ipc/tools/    ┌───────────────────┐   │
+│  │ sidecar A      │──exec-request──→│ sidecar B          │   │
+│  │ (caller)       │←──exec-result── │ (target)           │   │
+│  └───────────────┘                  └───────────────────┘   │
+│                                                              │
+│         shared /ipc volume + /workspace volume               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+The agent-runner is not involved — it only polls for IDs it generated itself (nanosecond timestamps). Sidecar-originated requests (prefixed `sidecar-`) are invisible to it.
+
+### Usage
+
+`sidecar_exec` is an exported bash function available in any command executed by `tool-executor.sh`:
+
+```bash
+sidecar_exec <target> <command> [timeout_sec]
+```
+
+| Argument | Description |
+|----------|-------------|
+| `target` | SkillPack name of the target sidecar (matched against `SYMPOZIUM_SKILL_PACK`) |
+| `command` | Shell command to execute in the target sidecar |
+| `timeout_sec` | Timeout in seconds (default: 30) |
+
+**Returns**: stdout from the target command (or file contents if `resultPath` was set). Exits non-zero on failure or timeout.
+
+### Example: calling from a bash command
+
+```bash
+# Fetch catalog from the api-tools sidecar
+catalog=$(sidecar_exec "sd-velatir-api" "node /app/dist/cli.js fetch-catalog" 30)
+echo "$catalog" | jq '.[] | .name'
+```
+
+### Example: calling from Node.js via execSync
+
+Since `sidecar_exec` is an exported bash function, call it from Node.js using a bash shell:
+
+```typescript
+import { execSync } from "child_process";
+
+const raw = execSync(
+  'sidecar_exec "sd-velatir-api" "node /app/dist/cli.js fetch-catalog"',
+  { shell: "/bin/bash", encoding: "utf-8", timeout: 35000 }
+);
+const catalog = JSON.parse(raw);
+```
+
+### Limitations
+
+- **Depth-1 by convention**: a sidecar handling a `sidecar_exec` request should not issue its own `sidecar_exec` calls. Circular call chains (A → B → A) are not detected at runtime.
+- **Polling overhead**: ~75ms average wait per hop (150ms poll interval). Negligible for single calls; compounding becomes relevant for deep chains.
+- **Debugging**: sidecar-to-sidecar data flow is not visible in the agent conversation. Use sidecar logs (`kubectl logs <pod> -c skill-<name>`) to trace calls.
+
+---
+
+## Large Results
+
+When a command's stdout exceeds 50KB, `tool-executor.sh` writes the full output to a file instead of truncating it. The result JSON includes a `resultPath` field pointing to the file:
+
+```json
+{
+  "id": "1718100000000000000",
+  "exitCode": 0,
+  "stdout": "(large output: 327680 bytes written to /workspace/.ipc-results/1718100000000000000.out)",
+  "stderr": "",
+  "timedOut": false,
+  "resultPath": "/workspace/.ipc-results/1718100000000000000.out"
+}
+```
+
+### How consumers handle it
+
+- **`sidecar_exec`** checks `resultPath` automatically — if set and the file exists, it reads the file instead of `stdout`. The caller gets the full output transparently.
+- **Agent-originated requests** see the `stdout` summary message. The agent can use `read_file` to access the full output at the path shown in the message.
+
+### File lifecycle
+
+Result files are written to `/workspace/.ipc-results/` and cleaned up by the consumer:
+
+- `sidecar_exec` deletes the file after reading it
+- For agent-originated requests, the file persists on `/workspace` until the pod terminates (or the agent deletes it)
+
+---
+
 ## Working Example: Echo Sidecar
 
 A complete minimal sidecar that echoes commands back, useful as a starting template.
@@ -432,7 +539,7 @@ kubectl get agentrun test-echo -o jsonpath='{.status.result}'
 | "timed out waiting for command execution result" | Sidecar not running. Check `kubectl logs <pod> -c skill-<name>` |
 | Command runs but wrong sidecar picks it up | Verify `target` field matches `SYMPOZIUM_SKILL_PACK`. Check for typos or casing issues |
 | Sidecar crashes on startup | Image must run as UID 1000. Verify `bash`, `jq`, and `coreutils` are installed |
-| Result is truncated | stdout/stderr are capped at 50KB each. Write large outputs to `/workspace` and use `read_file` instead |
+| Result is truncated | stdout is capped at 50KB. For larger outputs, `resultPath` is set automatically (see [Large Results](#large-results)). For agent-originated requests, use `read_file` on the path shown in stdout |
 | Sidecar exits immediately | The main process must stay alive. Use `tool-executor.sh` as CMD, not `sleep infinity` (unless your sidecar only needs passive file access) |
 | Permission denied on `/ipc` | The `/ipc` volume is an `emptyDir` injected by the controller — verify your SkillPack is being resolved correctly |
 
