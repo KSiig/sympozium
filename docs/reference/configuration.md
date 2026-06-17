@@ -8,7 +8,7 @@
 | `DATABASE_URL` | API Server | PostgreSQL connection string |
 | `INSTANCE_NAME` | Channels | Owning Agent name |
 | `MEMORY_ENABLED` | Agent Runner | Whether persistent memory is active |
-| `MAX_TOOL_ITERATIONS` | Agent Runner | Maximum tool-call iterations (default: 50). Can also be set per-run via `spec.env` in AgentRun CR. |
+| `MAX_TOOL_ITERATIONS` | Agent Runner | Maximum LLM round-trips before the agent stops (default: 50). Each round may contain multiple parallel tool calls. Can also be set per-run via `spec.env` in AgentRun CR. |
 | `DETAILED_LOG_PATH` | Agent Runner | Directory for untruncated JSONL log files. Empty = disabled. See [Detailed Logging](../guides/detailed-logging.md). |
 | `DETAILED_LOG_MAX_SIZE` | Agent Runner | Max size per log file before rotation (default: `50m`). Supports `m` (MB) and `g` (GB) suffixes. |
 | `TELEGRAM_BOT_TOKEN` | Telegram | Bot API token |
