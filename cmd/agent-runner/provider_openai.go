@@ -150,11 +150,10 @@ func (p *openaiProvider) Chat(ctx context.Context) (ChatResult, error) {
 		FinishReason: choice.FinishReason,
 	}
 
-	// Only treat tool calls as actionable when the model signalled it's
-	// awaiting tool results. Some providers stuff tool_calls into a final
-	// message with finish_reason="stop"; the OpenAI contract is to loop
-	// only when finish_reason="tool_calls".
-	if choice.FinishReason == "tool_calls" && len(choice.Message.ToolCalls) > 0 {
+	// Extract tool calls whenever present, regardless of finish_reason.
+	// OpenRouter-proxied models (Qwen, Gemini, Mistral) often return
+	// finish_reason="stop" with valid tool calls in the same message.
+	if len(choice.Message.ToolCalls) > 0 {
 		for _, tc := range choice.Message.ToolCalls {
 			fc := tc.AsFunction()
 			result.ToolCalls = append(result.ToolCalls, ToolCall{
