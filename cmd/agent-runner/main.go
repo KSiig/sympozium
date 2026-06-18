@@ -260,6 +260,24 @@ func main() {
 
 			systemPrompt += sb.String()
 		}
+
+		// Load sidecar native tools from manifests
+		if sidecarTools := loadSidecarTools("/ipc/tools"); len(sidecarTools) > 0 {
+			tools = append(tools, sidecarTools...)
+
+			var sb strings.Builder
+			sb.WriteString("\n\n## Native Sidecar Tools\n\n")
+			sb.WriteString(fmt.Sprintf("You have access to %d native sidecar tools. ", len(sidecarTools)))
+			sb.WriteString("ALWAYS prefer native sidecar tools over execute_command for sidecar operations. ")
+			sb.WriteString("These tools accept structured JSON — do NOT construct shell commands.\n\n")
+			sb.WriteString("Available sidecar tools:\n")
+			for _, t := range sidecarTools {
+				sb.WriteString(fmt.Sprintf("- %s: %s\n", t.Name, t.Description))
+			}
+			systemPrompt += sb.String()
+
+			log.Printf("sidecar tools: %d tool(s) registered", len(sidecarTools))
+		}
 		log.Printf("tools enabled: %d tool(s) registered", len(tools))
 	}
 

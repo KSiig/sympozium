@@ -325,6 +325,10 @@ func executeToolCall(ctx context.Context, name string, argsJSON string) string {
 		if isWorkflowMemoryTool(name) {
 			return executeWorkflowMemoryTool(ctx, name, argsJSON)
 		}
+		// Check if this is a sidecar native tool from a manifest
+		if tool, ok := lookupSidecarTool(name); ok {
+			return executeSidecarTool(ctx, tool, argsJSON)
+		}
 		// Check if this is an MCP tool from the manifest
 		if mcpTool, ok := lookupMCPTool(name); ok {
 			return executeMCPTool(ctx, mcpTool, argsJSON)
