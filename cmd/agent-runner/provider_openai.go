@@ -105,15 +105,18 @@ func (p *openaiProvider) Chat(ctx context.Context) (ChatResult, error) {
 		params.Tools = p.tools
 	}
 
+	detailedLog.LogLLM("request", map[string]any{"provider": p.provider, "model": p.model, "messages_count": len(p.messages), "tools_count": len(p.tools)})
 	completion, err := p.client.Chat.Completions.New(ctx, params)
 	if err != nil {
 		var apiErr *openai.Error
 		if errors.As(err, &apiErr) {
+			detailedLog.LogLLM("error", map[string]any{"provider": p.provider, "status_code": apiErr.StatusCode, "error": apiErr.Error()})
 			return ChatResult{}, fmt.Errorf("OpenAI API error (HTTP %d): %s",
 				apiErr.StatusCode, truncate(apiErr.Error(), 500))
 		}
 		return ChatResult{}, fmt.Errorf("OpenAI API error: %w", err)
 	}
+	detailedLog.LogLLM("response", map[string]any{"provider": p.provider, "model": p.model, "choices": completion.Choices, "usage": map[string]any{"input_tokens": completion.Usage.PromptTokens, "output_tokens": completion.Usage.CompletionTokens}})
 
 	if len(completion.Choices) == 0 {
 		return ChatResult{
@@ -150,11 +153,10 @@ func (p *openaiProvider) Chat(ctx context.Context) (ChatResult, error) {
 		FinishReason: choice.FinishReason,
 	}
 
-	// Only treat tool calls as actionable when the model signalled it's
-	// awaiting tool results. Some providers stuff tool_calls into a final
-	// message with finish_reason="stop"; the OpenAI contract is to loop
-	// only when finish_reason="tool_calls".
-	if choice.FinishReason == "tool_calls" && len(choice.Message.ToolCalls) > 0 {
+	// Extract tool calls whenever present, regardless of finish_reason.
+	// OpenRouter-proxied models (Qwen, Gemini, Mistral) often return
+	// finish_reason="stop" with valid tool calls in the same message.
+	if len(choice.Message.ToolCalls) > 0 {
 		for _, tc := range choice.Message.ToolCalls {
 			fc := tc.AsFunction()
 			result.ToolCalls = append(result.ToolCalls, ToolCall{

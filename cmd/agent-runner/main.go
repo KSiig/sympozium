@@ -17,8 +17,10 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
-// maxToolIterations is the maximum number of tool-call round-trips before
-// the agent stops and returns whatever text it has.
+// maxToolIterations is the maximum number of LLM reasoning rounds before
+// the agent stops and returns whatever text it has. Each round consists of
+// one LLM call (which may produce multiple parallel tool calls) followed by
+// tool execution and feeding results back to the LLM.
 var maxToolIterations = 50
 
 // llmRequestTimeout is the per-request timeout for individual LLM API calls.
@@ -125,6 +127,17 @@ func main() {
 	log.SetFlags(log.Ltime | log.Lmicroseconds)
 	log.Println("agent-runner starting")
 
+	if p := os.Getenv("DETAILED_LOG_PATH"); p != "" {
+		maxSize := parseSize(os.Getenv("DETAILED_LOG_MAX_SIZE"), 50*1024*1024)
+		dl, err := NewDetailedLogger(p, os.Getenv("AGENT_RUN_ID"), maxSize)
+		if err != nil {
+			log.Printf("WARNING: detailed logging disabled: %v", err)
+		} else {
+			detailedLog = dl
+			defer dl.Close()
+		}
+	}
+
 	task := getEnv("TASK", "")
 	if task == "" {
 		if b, err := os.ReadFile("/ipc/input/task.json"); err == nil {
@@ -149,6 +162,7 @@ func main() {
 		// minutes before writing results, but dry run exits in microseconds.
 		time.Sleep(3 * time.Second)
 		persona := getEnv("INSTANCE_NAME", "unknown")
+		detailedLog.LogAgent("dry_run", map[string]any{"task": task, "persona": persona})
 		res := agentResult{
 			Status:   "success",
 			Response: fmt.Sprintf("DRY RUN: [%s] would execute task: %s", persona, truncate(task, 300)),
@@ -260,6 +274,24 @@ func main() {
 
 			systemPrompt += sb.String()
 		}
+
+		// Load sidecar native tools from manifests
+		if sidecarTools := loadSidecarTools("/ipc/tools"); len(sidecarTools) > 0 {
+			tools = append(tools, sidecarTools...)
+
+			var sb strings.Builder
+			sb.WriteString("\n\n## Native Sidecar Tools\n\n")
+			sb.WriteString(fmt.Sprintf("You have access to %d native sidecar tools. ", len(sidecarTools)))
+			sb.WriteString("ALWAYS prefer native sidecar tools over execute_command for sidecar operations. ")
+			sb.WriteString("These tools accept structured JSON — do NOT construct shell commands.\n\n")
+			sb.WriteString("Available sidecar tools:\n")
+			for _, t := range sidecarTools {
+				sb.WriteString(fmt.Sprintf("- %s: %s\n", t.Name, t.Description))
+			}
+			systemPrompt += sb.String()
+
+			log.Printf("sidecar tools: %d tool(s) registered", len(sidecarTools))
+		}
 		log.Printf("tools enabled: %d tool(s) registered", len(tools))
 	}
 
@@ -350,6 +382,7 @@ func main() {
 
 	log.Printf("provider=%s model=%s baseURL=%s tools=%v task=%q",
 		provider, modelName, baseURL, toolsEnabled, truncate(task, 80))
+	detailedLog.LogAgent("config", map[string]any{"provider": provider, "model": modelName, "base_url": baseURL, "tools_enabled": toolsEnabled, "task": task})
 	reqTimeout := effectiveRequestTimeout(provider)
 	retries := effectiveMaxRetries(provider)
 	if reqTimeout > 0 {
@@ -395,6 +428,7 @@ func main() {
 		attribute.String("task.summary", truncate(task, 200)),
 	)
 	writeTraceContextMetadata(ctx)
+	detailedLog.LogAgent("span_start", map[string]any{"task": task})
 	logWithTrace(ctx, "info", "agent run started", map[string]any{
 		"instance":  getEnv("INSTANCE_NAME", ""),
 		"namespace": getEnv("AGENT_NAMESPACE", ""),
