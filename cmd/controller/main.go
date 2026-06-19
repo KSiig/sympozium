@@ -37,6 +37,10 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(sympoziumv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(gatewayv1.Install(scheme))
+
+	if v := os.Getenv("SYMPOZIUM_IMAGE_TAG"); v != "" {
+		imageTag = v
+	}
 }
 
 func main() {
