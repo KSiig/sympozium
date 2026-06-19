@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 env:
-  REGISTRY: ghcr.io/sympozium-ai/sympozium
+  REGISTRY: ghcr.io/KSiig/sympozium
 
 permissions:
   contents: read
