@@ -725,6 +725,19 @@ func (r *AgentRunReconciler) reconcileRunning(ctx context.Context, log logr.Logg
 	}
 
 	// Check timeout (explicit spec timeout or hard default for scheduled runs).
+	// If the AgentRun has no explicit timeout, try to inherit from the Agent
+	// instance's RunTimeout (reconcilePending sets this in memory but it may
+	// not have been persisted).
+	if agentRun.Spec.Timeout == nil {
+		inst := &sympoziumv1alpha1.Agent{}
+		if err := r.Get(ctx, client.ObjectKey{Name: agentRun.Spec.AgentRef, Namespace: agentRun.Namespace}, inst); err == nil {
+			if rt := inst.Spec.Agents.Default.RunTimeout; rt != "" {
+				if d, err := time.ParseDuration(rt); err == nil && d > 0 {
+					agentRun.Spec.Timeout = &metav1.Duration{Duration: d}
+				}
+			}
+		}
+	}
 	if agentRun.Status.StartedAt != nil {
 		elapsed := time.Since(agentRun.Status.StartedAt.Time)
 		timeout := 10 * time.Minute // default hard timeout
