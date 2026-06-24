@@ -145,17 +145,20 @@ type ExecRequest struct {
 	Args    []string          `json:"args,omitempty"`
 	WorkDir string            `json:"workDir,omitempty"`
 	Timeout int               `json:"timeout,omitempty"` // seconds
+	Target  string            `json:"target,omitempty"`
+	Caller  string            `json:"caller,omitempty"`
 	Stdin   string            `json:"stdin,omitempty"`
 	Meta    map[string]string `json:"_meta,omitempty"`
 }
 
 // ExecResult is written to /ipc/tools/exec-result-*.json with execution results.
 type ExecResult struct {
-	ID       string `json:"id"`
-	ExitCode int    `json:"exitCode"`
-	Stdout   string `json:"stdout"`
-	Stderr   string `json:"stderr"`
-	TimedOut bool   `json:"timedOut,omitempty"`
+	ID         string `json:"id"`
+	ExitCode   int    `json:"exitCode"`
+	Stdout     string `json:"stdout"`
+	Stderr     string `json:"stderr"`
+	TimedOut   bool   `json:"timedOut,omitempty"`
+	ResultPath string `json:"resultPath,omitempty"`
 }
 
 // OutboundMessage is written to /ipc/messages/send-*.json for channel delivery.

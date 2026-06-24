@@ -9,8 +9,9 @@
 
 set -euo pipefail
 
-TOOLS_DIR="/ipc/tools"
+export TOOLS_DIR="/ipc/tools"
 POLL_INTERVAL=0.2  # seconds
+export RESULTS_DIR="/workspace/.ipc-results"
 
 SECRET_FILE="/secrets/github-token/GH_TOKEN"
 
@@ -67,6 +68,64 @@ export -f sympozium_fingerprint
 echo "[tool-executor] started, watching $TOOLS_DIR for exec requests"
 
 # ---------------------------------------------------------------------------
+# sidecar_exec <target> <command> [timeout_sec]
+#
+# Send an exec request to another sidecar and wait for its result.
+# Returns stdout (or file contents via resultPath) on success; exits non-zero
+# on failure or timeout. Intended for sidecar-to-sidecar calls that bypass
+# the LLM context entirely.
+# ---------------------------------------------------------------------------
+sidecar_exec() {
+    local target="$1"
+    local command="$2"
+    local timeout_sec="${3:-30}"
+
+    local id="sidecar-$(date +%s%N)-$$"
+    local req_file="$TOOLS_DIR/exec-request-${id}.json"
+    local res_file="$TOOLS_DIR/exec-result-${id}.json"
+
+    jq -n \
+        --arg id "$id" \
+        --arg command "$command" \
+        --arg target "$target" \
+        --arg caller "${SYMPOZIUM_SKILL_PACK:-unknown}" \
+        --argjson timeout "$timeout_sec" \
+        '{id: $id, command: $command, target: $target, caller: $caller, timeout: $timeout}' \
+        > "${req_file}.tmp"
+    mv "${req_file}.tmp" "$req_file"
+
+    local deadline=$((SECONDS + timeout_sec + 5))
+    while [ $SECONDS -lt $deadline ]; do
+        if [ -f "$res_file" ]; then
+            local exit_code result_path
+            exit_code=$(jq -r '.exitCode // 1' "$res_file")
+            if [ "$exit_code" -ne 0 ]; then
+                jq -r '.stderr // ""' "$res_file" >&2
+                rm -f "$req_file" "$res_file" 2>/dev/null
+                rm -rf "$TOOLS_DIR/.claim-${id}" 2>/dev/null
+                return "$exit_code"
+            fi
+            result_path=$(jq -r '.resultPath // ""' "$res_file")
+            if [ -n "$result_path" ] && [ -f "$result_path" ]; then
+                cat "$result_path"
+                rm -f "$result_path"
+            else
+                jq -r '.stdout // ""' "$res_file"
+            fi
+            rm -f "$req_file" "$res_file" 2>/dev/null
+            rm -rf "$TOOLS_DIR/.claim-${id}" 2>/dev/null
+            return 0
+        fi
+        sleep 0.15
+    done
+
+    rm -f "$req_file" 2>/dev/null
+    echo "sidecar_exec: timed out waiting for $target" >&2
+    return 124
+}
+export -f sidecar_exec
+
+# ---------------------------------------------------------------------------
 # process_request <req_file>
 # ---------------------------------------------------------------------------
 process_request() {
@@ -116,22 +175,38 @@ process_request() {
     stderr=$(cat "$tmp_stderr")
     rm -f "$tmp_stdout" "$tmp_stderr"
 
+    local result_path=""
     if [[ ${#stdout} -gt 51200 ]]; then
-        stdout="${stdout:0:51200}...(truncated)"
+        mkdir -p "$RESULTS_DIR"
+        result_path="$RESULTS_DIR/${id}.out"
+        printf '%s' "$stdout" > "$result_path"
+        stdout="(large output: ${#stdout} bytes written to $result_path)"
     fi
     if [[ ${#stderr} -gt 51200 ]]; then
         stderr="${stderr:0:51200}...(truncated)"
     fi
 
     local tmp_result="${result_file}.tmp"
-    jq -n \
-        --arg id "$id" \
-        --argjson exitCode "$exit_code" \
-        --arg stdout "$stdout" \
-        --arg stderr "$stderr" \
-        --argjson timedOut "$timed_out" \
-        '{id: $id, exitCode: $exitCode, stdout: $stdout, stderr: $stderr, timedOut: $timedOut}' \
-        > "$tmp_result"
+    if [[ -n "$result_path" ]]; then
+        jq -n \
+            --arg id "$id" \
+            --argjson exitCode "$exit_code" \
+            --arg stdout "$stdout" \
+            --arg stderr "$stderr" \
+            --argjson timedOut "$timed_out" \
+            --arg resultPath "$result_path" \
+            '{id: $id, exitCode: $exitCode, stdout: $stdout, stderr: $stderr, timedOut: $timedOut, resultPath: $resultPath}' \
+            > "$tmp_result"
+    else
+        jq -n \
+            --arg id "$id" \
+            --argjson exitCode "$exit_code" \
+            --arg stdout "$stdout" \
+            --arg stderr "$stderr" \
+            --argjson timedOut "$timed_out" \
+            '{id: $id, exitCode: $exitCode, stdout: $stdout, stderr: $stderr, timedOut: $timedOut}' \
+            > "$tmp_result"
+    fi
     mv "$tmp_result" "$result_file"
 
     echo "[tool-executor] done [$id]: exit=$exit_code timed_out=$timed_out"
