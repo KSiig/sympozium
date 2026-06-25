@@ -21,10 +21,14 @@ type sidecarToolEntry struct {
 	Description    string         `json:"description"`
 	Target         string         `json:"target"`
 	Subcommand     string         `json:"subcommand"`
-	InputMode      string         `json:"inputMode"`      // "stdin" or "args"
-	PositionalArgs []string       `json:"positionalArgs"` // parameter names to pass as positional CLI args (in order)
+	Exec           string         `json:"exec,omitempty"`  // executable command prefix (default: "node /app/dist/cli.js")
+	InputMode      string         `json:"inputMode"`       // "stdin" or "args"
+	PositionalArgs []string       `json:"positionalArgs"`  // parameter names to pass as positional CLI args (in order)
+	Timeout        int            `json:"timeout,omitempty"` // per-tool timeout in seconds (0 = use default, max 120s)
 	Parameters     map[string]any `json:"parameters"`
 }
+
+const defaultSidecarExec = "node /app/dist/cli.js"
 
 var (
 	sidecarToolRegistry   = map[string]sidecarToolEntry{}
@@ -72,6 +76,11 @@ func loadSidecarTools(ipcToolsDir string) []ToolDef {
 		}
 
 		for _, entry := range manifest.Tools {
+			entry.Target = normalizeSidecarTarget(entry.Target)
+			if entry.InputMode != "stdin" && entry.InputMode != "args" && entry.InputMode != "" {
+				log.Printf("sidecar_tools: %s: unrecognized inputMode %q, defaulting to args", entry.Name, entry.InputMode)
+				entry.InputMode = "args"
+			}
 			sidecarToolRegistry[entry.Name] = entry
 			allTools = append(allTools, ToolDef{
 				Name:        entry.Name,
@@ -93,31 +102,36 @@ func lookupSidecarTool(name string) (sidecarToolEntry, bool) {
 	return entry, ok
 }
 
-func isSidecarTool(name string) bool {
-	sidecarToolRegistryMu.RLock()
-	defer sidecarToolRegistryMu.RUnlock()
-	_, ok := sidecarToolRegistry[name]
-	return ok
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
 }
 
-// executeSidecarTool constructs the shell command for a sidecar native tool
-// and dispatches it via the existing IPC executeCommand mechanism.
-func executeSidecarTool(ctx context.Context, tool sidecarToolEntry, argsJSON string) string {
-	subcommand := tool.Subcommand
+// buildSidecarCommand constructs the shell command string for a sidecar tool
+// invocation without dispatching it. Exported for testing.
+//
+// In args mode, only parameters listed in PositionalArgs are passed (as
+// positional CLI arguments in declared order). Parameters not in PositionalArgs
+// are intentionally dropped — args-mode sidecars receive input solely through
+// positional arguments; named parameters exist in the schema for the LLM's
+// benefit but are not forwarded.
+func buildSidecarCommand(tool sidecarToolEntry, argsJSON string) string {
+	exec := tool.Exec
+	if exec == "" {
+		exec = defaultSidecarExec
+	}
 
 	var args map[string]any
 	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
-		return fmt.Sprintf("Error parsing sidecar tool arguments: %v", err)
+		return ""
 	}
 
-	// Extract positional args (in declared order) and build the suffix.
 	var posSuffix string
 	if len(tool.PositionalArgs) > 0 {
 		var parts []string
 		for _, key := range tool.PositionalArgs {
 			if val, ok := args[key]; ok {
-				parts = append(parts, fmt.Sprintf("%v", val))
-				delete(args, key) // remove from the map so it's not piped on stdin
+				parts = append(parts, shellQuote(fmt.Sprintf("%v", val)))
+				delete(args, key)
 			}
 		}
 		if len(parts) > 0 {
@@ -125,23 +139,32 @@ func executeSidecarTool(ctx context.Context, tool sidecarToolEntry, argsJSON str
 		}
 	}
 
-	var command string
 	if tool.InputMode == "stdin" {
-		// Re-marshal the remaining args (positional fields stripped) as stdin JSON.
 		stdinJSON, err := json.Marshal(args)
 		if err != nil {
-			return fmt.Sprintf("Error marshalling sidecar tool stdin: %v", err)
+			return ""
 		}
-		escaped := strings.ReplaceAll(string(stdinJSON), "'", "'\\''")
-		command = fmt.Sprintf("echo '%s' | node /app/dist/cli.js %s%s",
-			escaped, subcommand, posSuffix)
-	} else {
-		// Args-mode: positional args appended to the subcommand.
-		command = fmt.Sprintf("node /app/dist/cli.js %s%s", subcommand, posSuffix)
+		escaped := shellQuote(string(stdinJSON))
+		return fmt.Sprintf("echo %s | %s %s%s",
+			escaped, exec, tool.Subcommand, posSuffix)
+	}
+	return fmt.Sprintf("%s %s%s", exec, tool.Subcommand, posSuffix)
+}
+
+// executeSidecarTool constructs the shell command for a sidecar native tool
+// and dispatches it via the existing IPC executeCommand mechanism.
+func executeSidecarTool(ctx context.Context, tool sidecarToolEntry, argsJSON string) string {
+	command := buildSidecarCommand(tool, argsJSON)
+	if command == "" {
+		return "Error building sidecar tool command"
 	}
 
-	return executeCommand(ctx, map[string]any{
+	execArgs := map[string]any{
 		"command": command,
 		"target":  tool.Target,
-	})
+	}
+	if tool.Timeout > 0 {
+		execArgs["timeout"] = float64(tool.Timeout)
+	}
+	return executeCommand(ctx, execArgs)
 }
