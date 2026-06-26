@@ -275,22 +275,28 @@ func main() {
 			systemPrompt += sb.String()
 		}
 
-		// Load sidecar native tools from manifests
-		if sidecarTools := loadSidecarTools("/ipc/tools"); len(sidecarTools) > 0 {
-			tools = append(tools, sidecarTools...)
+		// Load native sidecar tools from the controller-written, read-only
+		// manifest (declared on SkillPack CRDs). These are presented to the
+		// model as typed function-calling tools and dispatch through the gated
+		// exec IPC targeting their owning sidecar.
+		if manifestPath := getEnv("SIDECAR_TOOLS_MANIFEST_PATH", ""); manifestPath != "" {
+			if sidecarTools := loadSidecarTools(manifestPath); len(sidecarTools) > 0 {
+				tools = append(tools, sidecarTools...)
 
-			var sb strings.Builder
-			sb.WriteString("\n\n## Native Sidecar Tools\n\n")
-			sb.WriteString(fmt.Sprintf("You have access to %d native sidecar tools. ", len(sidecarTools)))
-			sb.WriteString("ALWAYS prefer native sidecar tools over execute_command for sidecar operations. ")
-			sb.WriteString("These tools accept structured JSON — do NOT construct shell commands.\n\n")
-			sb.WriteString("Available sidecar tools:\n")
-			for _, t := range sidecarTools {
-				sb.WriteString(fmt.Sprintf("- %s: %s\n", t.Name, t.Description))
+				var sb strings.Builder
+				sb.WriteString("\n\n## Native Sidecar Tools\n\n")
+				sb.WriteString(fmt.Sprintf("You have %d native sidecar tool(s) that accept structured JSON arguments. ", len(sidecarTools)))
+				sb.WriteString("ALWAYS prefer a native sidecar tool over execute_command when one matches the task — ")
+				sb.WriteString("they are more reliable than constructing shell commands.\n\n")
+				sb.WriteString("Available: ")
+				names := make([]string, 0, len(sidecarTools))
+				for _, t := range sidecarTools {
+					names = append(names, t.Name)
+				}
+				sb.WriteString(strings.Join(names, ", "))
+				sb.WriteString("\n")
+				systemPrompt += sb.String()
 			}
-			systemPrompt += sb.String()
-
-			log.Printf("sidecar tools: %d tool(s) registered", len(sidecarTools))
 		}
 		log.Printf("tools enabled: %d tool(s) registered", len(tools))
 	}
